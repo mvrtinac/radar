@@ -2,7 +2,8 @@
 
 Uso:  python scripts/update.py
 Lo corre GitHub Actions todos los días (.github/workflows/update.yml).
-Para agregar una tienda Shopify basta con sumar una línea en stores.json.
+Para agregar una tienda basta con sumar una línea en stores.json
+("platform": "shopify" por defecto, o "woocommerce").
 """
 import json, re, sys, time, unicodedata, datetime, urllib.request, urllib.error
 from pathlib import Path
@@ -154,6 +155,80 @@ def fetch_store(store):
         time.sleep(1)
     return items
 
+# ---------- tiendas WooCommerce (API pública "Store API") ----------
+def get_json(url):
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (radar-streetwear catalog)", "Accept": "application/json"})
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(req, timeout=30) as r:
+                return json.load(r)
+        except Exception:
+            if attempt == 2:
+                raise
+            time.sleep(3 * (attempt + 1))
+
+def from_woo(p, store):
+    title = re.sub(r"<[^>]+>", "", p.get("name") or "").strip()
+    if re.search(EXCLUDE, norm(title)):
+        return None
+    pr = p.get("prices") or {}
+    div = 10 ** int(pr.get("currency_minor_unit") or 0)
+    try:
+        price = int(int(pr.get("price") or 0) / div)
+        regular = int(int(pr.get("regular_price") or 0) / div)
+    except ValueError:
+        return None
+    if price <= 0:
+        return None
+    ca = regular if regular > price else None
+    avail = bool(p.get("is_in_stock"))
+    attrs = p.get("attributes") or []
+    size_attr = next((a for a in attrs if is_size_option(a.get("name", ""))), None)
+    color_attr = next((a for a in attrs if is_color_option(a.get("name", ""))), None)
+    sizes = []
+    if avail:
+        if size_attr:
+            # la API lista las tallas que ofrece el producto (no el stock por talla)
+            for t in size_attr.get("terms") or []:
+                s = norm_size(t.get("name"))
+                if s and s not in sizes:
+                    sizes.append(s)
+        else:
+            sizes = ["Única"]
+    color_text = f"{title} {p.get('slug', '').replace('-', ' ')}"
+    if color_attr:
+        color_text += " " + " ".join(t.get("name", "") for t in color_attr.get("terms") or [])
+    cols = colors(color_text)
+    imgs = p.get("images") or []
+    cats = " ".join(c.get("name", "") for c in p.get("categories") or [])
+    cat = category(title, cats)
+    item = {
+        "brand": store["brand"], "title": title, "cat": cat, "price": price, "compare_at": ca,
+        "sizes": sizes, "available": avail, "colors": cols,
+        "image": imgs[0].get("src") if imgs else None,
+        "url": p.get("permalink"), "published": "",
+    }
+    item["search"] = norm(" ".join([store["brand"], title, cat, " ".join(cols), cats]))
+    return item
+
+def fetch_woo(store):
+    items, seen = [], set()
+    for page in range(1, MAX_PAGES + 1):
+        products = get_json(f"https://{store['domain']}/wp-json/wc/store/v1/products?per_page=100&page={page}")
+        if not products:
+            break
+        for p in products:
+            it = from_woo(p, store)
+            if it and it["url"] and it["url"] not in seen:
+                seen.add(it["url"])
+                items.append(it)
+        if len(products) < 100:
+            break
+        time.sleep(1)
+    return items
+
+FETCHERS = {"shopify": fetch_store, "woocommerce": fetch_woo}
+
 def main():
     stores = json.loads((ROOT / "stores.json").read_text(encoding="utf-8"))
     out_path = ROOT / "data.json"
@@ -166,7 +241,7 @@ def main():
     items, report = [], []
     for s in stores:
         try:
-            got = fetch_store(s)
+            got = FETCHERS[s.get("platform", "shopify")](s)
             items += got
             report.append(f"{s['brand']}: {len(got)}")
         except Exception as e:
