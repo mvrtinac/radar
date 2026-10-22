@@ -23,5 +23,19 @@
   {"brand": "Kanji Clothes", "domain": "www.kanji.cl", "instagram": "https://www.instagram.com/kanjiclothes/"},
   {"brand": "Kingbink", "domain": "www.kingbink.cl", "instagram": "https://www.instagram.com/kingbink.cl/"},
   {"brand": "Flaw", "domain": "flaw.cl", "instagram": null},
-  {"brand": "Old Tree", "domain": "www.oldtree.cl", "platform": "woocommerce", "instagram": "https://www.instagram.com/oldtreejeans/"}
+  {"brand": "Old Tree", "domain": "www.oldtree.cl", "platform": "woocommerce", "instagram": "https://www.instagram.com/oldtreejeans/"},
+  {"brand": "Stodak", "domain": "stodak.com", "instagram": "https://www.instagram.com/stodakcl/"},
+  {"brand": "Bucle", "domain": "buclefam.cl", "instagram": "https://www.instagram.com/buclecl/"},
+  {"brand": "VSA Worldwide", "domain": "vsaworldwide.cl", "instagram": "https://www.instagram.com/vsa.worldwide/"},
+  {"brand": "Beeway", "domain": "www.beeway.cl", "instagram": "https://www.instagram.com/beeway.cl/"},
+  {"brand": "Fresh Brand", "domain": "www.freshbrand.cl", "instagram": "https://www.instagram.com/freshbrand.cl/"},
+  {"brand": "Bang Gang", "domain": "bvnggvng.cl", "instagram": "https://www.instagram.com/bvnggvng.cl/"},
+  {"brand": "Buckler", "domain": "buckler.cl", "instagram": "https://www.instagram.com/buckler.chile/"},
+  {"brand": "Hardfly", "domain": "hardfly.cl", "instagram": null},
+  {"brand": "All Waves", "domain": "allwavesworld.com", "instagram": null},
+  {"brand": "Endless", "domain": "endlesscl.com", "instagram": null},
+  {"brand": "Malaño", "domain": "www.badyear.net", "platform": "woocommerce", "instagram": "https://www.instagram.com/mal365dias/"},
+  {"brand": "IPREX", "domain": "iprex.cl", "platform": "woocommerce", "api_domain": "tienda.iprex.cl", "url_template": "https://iprex.cl/producto/{slug}", "instagram": "https://www.instagram.com/iprex.cl/"},
+  {"brand": "Kuro Archives", "domain": "www.kuroarchives.com", "platform": "sitemap", "instagram": "https://www.instagram.com/kuro.archives/"},
+  {"brand": "Remnant Memories", "domain": "remnantmemories.cl", "platform": "sitemap", "instagram": null}
 ]
