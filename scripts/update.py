@@ -3,7 +3,8 @@
 Uso:  python scripts/update.py
 Lo corre GitHub Actions todos los días (.github/workflows/update.yml).
 Para agregar una tienda basta con sumar una línea en stores.json
-("platform": "shopify" por defecto, o "woocommerce").
+("platform": "shopify" por defecto, "woocommerce", o "sitemap" para Jumpseller y
+otras plataformas: lee el mapa del sitio y la ficha de cada producto).
 """
 import json, re, sys, time, unicodedata, datetime, urllib.request, urllib.error
 from pathlib import Path
@@ -17,7 +18,7 @@ def norm(s):
     return "".join(c for c in s if unicodedata.category(c) != "Mn")
 
 # ---------- reglas de clasificación (editar aquí) ----------
-EXCLUDE = r"^prueba|\bcd\b|vinilo|vinyl|gift ?card|tarjeta de regalo|giftcard|espejo"
+EXCLUDE = r"^prueba|\bcd\b|vinilo|vinyl|gift ?card|tarjeta de regalo|giftcard|espejo|por mayor|mayorista"
 
 CATS = [
     ("Shorts", r"\bshorts?\b|\bbermuda|\bjorts?\b"),
@@ -206,7 +207,8 @@ def from_woo(p, store):
         "brand": store["brand"], "title": title, "cat": cat, "price": price, "compare_at": ca,
         "sizes": sizes, "available": avail, "colors": cols,
         "image": imgs[0].get("src") if imgs else None,
-        "url": p.get("permalink"), "published": "",
+        "url": store["url_template"].format(slug=p.get("slug")) if store.get("url_template") else p.get("permalink"),
+        "published": "",
     }
     item["search"] = norm(" ".join([store["brand"], title, cat, " ".join(cols), cats]))
     return item
@@ -214,7 +216,8 @@ def from_woo(p, store):
 def fetch_woo(store):
     items, seen = [], set()
     for page in range(1, MAX_PAGES + 1):
-        products = get_json(f"https://{store['domain']}/wp-json/wc/store/v1/products?per_page=100&page={page}")
+        api = store.get("api_domain") or store["domain"]
+        products = get_json(f"https://{api}/wp-json/wc/store/v1/products?per_page=100&page={page}")
         if not products:
             break
         for p in products:
@@ -227,7 +230,130 @@ def fetch_woo(store):
         time.sleep(1)
     return items
 
-FETCHERS = {"shopify": fetch_store, "woocommerce": fetch_woo}
+# ---------- tiendas Jumpseller u otras: mapa del sitio + ficha de cada producto ----------
+UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"}
+
+def get_text(url):
+    req = urllib.request.Request(url, headers=UA)
+    with urllib.request.urlopen(req, timeout=30) as r:
+        return r.read().decode("utf-8", "replace")
+
+def sitemap_urls(url, depth=0):
+    xml = get_text(url)
+    locs = [html_unescape(u.strip()) for u in re.findall(r"<loc>(.*?)</loc>", xml, re.S)]
+    if "<sitemapindex" in xml and depth < 2:
+        out = []
+        for sm in locs:
+            if re.search(r"product|producto|sitemap", sm, re.I):
+                try:
+                    out += sitemap_urls(sm, depth + 1)
+                except Exception:
+                    pass
+        return out
+    return locs
+
+def html_unescape(s):
+    import html
+    return html.unescape(s)
+
+def meta(htmltext, prop):
+    m = re.search(r'<meta[^>]+(?:property|name)=["\']' + re.escape(prop) + r'["\'][^>]*content=["\']([^"\']*)', htmltext)
+    if not m:
+        m = re.search(r'<meta[^>]+content=["\']([^"\']*)["\'][^>]*(?:property|name)=["\']' + re.escape(prop) + r'["\']', htmltext)
+    return html_unescape(m.group(1)) if m else None
+
+def ld_product(htmltext):
+    for block in re.findall(r'<script[^>]+application/ld\+json[^>]*>(.*?)</script>', htmltext, re.S):
+        try:
+            data = json.loads(block.strip())
+        except Exception:
+            continue
+        stack = data if isinstance(data, list) else [data]
+        while stack:
+            d = stack.pop()
+            if isinstance(d, dict):
+                if d.get("@type") == "Product" or (isinstance(d.get("@type"), list) and "Product" in d["@type"]):
+                    return d
+                stack += [v for v in d.get("@graph", [])] if isinstance(d.get("@graph"), list) else []
+            elif isinstance(d, list):
+                stack += d
+    return None
+
+def num(v):
+    try:
+        return int(float(str(v).replace(",", "")))
+    except Exception:
+        return None
+
+def from_page(url, htmltext, store):
+    ld = ld_product(htmltext) or {}
+    title = ld.get("name") or meta(htmltext, "og:title") or ""
+    title = html_unescape(title).strip()
+    if not title or re.search(EXCLUDE, norm(title)):
+        return None
+    offers = ld.get("offers") or {}
+    if isinstance(offers, list):
+        offers = offers[0] if offers else {}
+    price = num(meta(htmltext, "product:price:amount")) or num(offers.get("price")) or num(offers.get("lowPrice"))
+    if not price:
+        return None   # no es una página de producto
+    original = num(meta(htmltext, "product:original_price:amount"))
+    ca = original if original and original > price else None
+    avail_txt = (meta(htmltext, "product:availability") or str(offers.get("availability") or "")).lower()
+    avail = ("instock" in avail_txt.replace(" ", "")) or avail_txt in ("in stock", "available")
+    sizes = []
+    if avail:
+        m = re.search(r'"options"\s*:\s*(\[\{.*?\}\])\s*,\s*"option_types"', htmltext, re.S)
+        if m:
+            try:
+                for o in json.loads(m.group(1)):
+                    if is_size_option(o.get("name", "")):
+                        for v in o.get("values") or []:
+                            s = norm_size(v.get("name"))
+                            if s and s not in sizes:
+                                sizes.append(s)
+            except Exception:
+                pass
+        if not sizes:
+            sizes = ["Única"]
+    image = ld.get("image")
+    if isinstance(image, list):
+        image = image[0] if image else None
+    if isinstance(image, dict):
+        image = image.get("url")
+    image = image or meta(htmltext, "og:image")
+    cat = category(title, str(ld.get("category") or ""))
+    cols = colors(f"{title} {url.rsplit('/', 1)[-1].replace('-', ' ')}")
+    item = {
+        "brand": store["brand"], "title": title, "cat": cat, "price": price, "compare_at": ca,
+        "sizes": sizes, "available": avail, "colors": cols, "image": image,
+        "url": url.split("?")[0], "published": "",
+    }
+    item["search"] = norm(" ".join([store["brand"], title, cat, " ".join(cols)]))
+    return item
+
+def fetch_sitemap(store):
+    base = f"https://{store['domain']}"
+    urls = sitemap_urls(store.get("sitemap") or f"{base}/sitemap.xml")
+    skip = re.compile(r"/(en|pt|fr)(/|$)|/(cart|carrito|contact|contacto|login|customer|blog|pages?|policies|politicas)(/|$)", re.I)
+    seen, items = set(), []
+    for u in urls:
+        path = u.split(store["domain"], 1)[-1]
+        if store["domain"] not in u or path in ("", "/") or skip.search(path) or u in seen:
+            continue
+        seen.add(u)
+        if len(seen) > 600:
+            break
+        try:
+            it = from_page(u, get_text(u), store)
+        except Exception:
+            continue
+        if it:
+            items.append(it)
+        time.sleep(0.3)
+    return items
+
+FETCHERS = {"shopify": fetch_store, "woocommerce": fetch_woo, "sitemap": fetch_sitemap}
 
 def main():
     stores = json.loads((ROOT / "stores.json").read_text(encoding="utf-8"))
