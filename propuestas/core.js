@@ -20,6 +20,8 @@
   const onSale = i => i.compare_at > i.price;
   const disc = i => onSale(i) ? Math.round((1 - i.price / i.compare_at) * 100) : 0;
   const KEY = "radar-" + (CFG.id || "p");
+  const okUrl = u => typeof u === "string" && /^https:\/\//i.test(u);
+  try{["radar-f1","radar-f2","radar-f3"].forEach(k=>localStorage.removeItem(k))}catch(e){}
 
   function save(){try{localStorage.setItem(KEY,JSON.stringify({...state,brand:[...state.brand],cat:[...state.cat],size:[...state.size],color:[...state.color]}))}catch(e){}}
   function load(){try{const s=JSON.parse(localStorage.getItem(KEY)||"null");if(s)Object.assign(state,s,{brand:new Set(s.brand),cat:new Set(s.cat),size:new Set(s.size),color:new Set(s.color)})}catch(e){}}
@@ -49,7 +51,7 @@
 
   function panelHTML(key){
     const foot=`<div class="pfoot"><button class="plink quiet" type="button" data-clear>Quitar</button><button class="plink" type="button" data-close>Listo</button></div>`;
-    if(key==="price")return `<div class="prow"><input type="number" id="pMin" placeholder="Mínimo" min="0" step="1000" inputmode="numeric" value="${state.pMin??""}" aria-label="Precio mínimo"><input type="number" id="pMax" placeholder="Máximo" min="0" step="1000" inputmode="numeric" value="${state.pMax??""}" aria-label="Precio máximo"></div>
+    if(key==="price")return `<div class="prow"><input type="number" id="pMin" placeholder="Mínimo" min="0" step="1000" inputmode="numeric" value="${Number.isFinite(state.pMin)?state.pMin:""}" aria-label="Precio mínimo"><input type="number" id="pMax" placeholder="Máximo" min="0" step="1000" inputmode="numeric" value="${Number.isFinite(state.pMax)?state.pMax:""}" aria-label="Precio máximo"></div>
       <div class="presets"><button type="button" data-p="0-20000">Hasta $20.000</button><button type="button" data-p="20000-40000">$20.000 a $40.000</button><button type="button" data-p="40000-60000">$40.000 a $60.000</button><button type="button" data-p="60000-">Más de $60.000</button></div>${foot}`;
     const c=counts(key), vals=allValues(key);
     if(key==="size")return `<div class="sizes-grid">${vals.map(v=>`<label><input type="checkbox" value="${esc(v)}" ${state.size.has(v)?"checked":""}>${esc(v)}</label>`).join("")}</div>${foot}`;
@@ -92,7 +94,7 @@
 
   const H = {fmt,int,esc,isNew,onSale,disc,store:b=>STORES[b]||{}};
   function picHTML(i){
-    return i.image?`<img src="${esc(i.image)}" alt="${esc(i.title)}" loading="lazy" decoding="async" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'ph',textContent:'Foto no disponible'}))">`:`<span class="ph">Sin foto</span>`;
+    return i.image?`<img src="${esc(i.image)}" alt="${esc(i.title)}" loading="lazy" decoding="async" >`:`<span class="ph">Sin foto</span>`;
   }
   H.pic = picHTML;
   H.sizes = i => i.sizes.length ? i.sizes.map(s=>`<span>${esc(s)}</span>`).join("") : `<span class="none">Sin tallas disponibles</span>`;
@@ -125,8 +127,8 @@
     $("stores-table").querySelector("tbody").innerHTML=rows.map(r=>`<tr>
       <td class="name"><button type="button" data-brand="${esc(r.brand)}">${esc(r.brand)}</button></td>
       <td class="r">${z(r.n)}</td><td class="r opt-col">${z(r.stock)}</td><td class="r">${z(r.sale)}</td>
-      <td><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.url.replace(/^https?:\/\/(www\.)?/,""))}</a></td>
-      <td class="opt-col">${r.instagram?`<a href="${esc(r.instagram)}" target="_blank" rel="noopener">@${esc(r.instagram.replace(/\/$/,"").split("/").pop())}</a>`:`<span class="dash">—</span>`}</td></tr>`).join("");
+      <td><a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">${esc(r.url.replace(/^https?:\/\/(www\.)?/,""))}</a></td>
+      <td class="opt-col">${r.instagram?`<a href="${esc(r.instagram)}" target="_blank" rel="noopener noreferrer">@${esc(r.instagram.replace(/\/$/,"").split("/").pop())}</a>`:`<span class="dash">—</span>`}</td></tr>`).join("");
     $("stores-table").querySelectorAll("[data-brand]").forEach(b=>b.onclick=()=>{state.brand=new Set([b.dataset.brand]);state.tab="all";location.hash="";update();route()});
   }
   function route(){
@@ -147,11 +149,14 @@
     $("sort").onchange=()=>{state.sort=$("sort").value;update()};
     $("more").onclick=()=>{shown+=PAGE;update(false)};
     window.addEventListener("hashchange",route);
+    document.addEventListener("error",e=>{const t=e.target;if(t.tagName==="IMG"&&t.closest(".pic"))t.replaceWith(Object.assign(document.createElement("span"),{className:"ph",textContent:"Foto no disponible"}))},true);
     window.addEventListener("scroll",()=>document.body.classList.toggle("scrolled",scrollY>4),{passive:true});
   }
   function loadData(){
     skeleton();
     fetch((CFG.data||"../data.json")+"?v="+Date.now()).then(r=>{if(!r.ok)throw new Error(r.status);return r.json()}).then(d=>{
+      (d.items||[]).forEach(i=>{if(!okUrl(i.url))i.url="#";if(i.image&&!okUrl(i.image))i.image=null});
+      (d.stores||[]).forEach(s=>{if(!okUrl(s.url))s.url="#";if(s.instagram&&!okUrl(s.instagram))s.instagram=null});
       DATA=d;STORES={};(d.stores||[]).forEach(s=>STORES[s.brand]=s);
       const items=d.items,brands=new Set(items.map(i=>i.brand)).size,sale=items.filter(i=>onSale(i)&&i.available).length,fresh=items.filter(isNew).length;
       const stats={items:items.length,brands,sale,fresh,updated:d.updated};
