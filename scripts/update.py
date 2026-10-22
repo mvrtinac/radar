@@ -8,10 +8,36 @@ otras plataformas: lee el mapa del sitio y la ficha de cada producto).
 """
 import json, re, sys, time, unicodedata, datetime, urllib.request, urllib.error
 from pathlib import Path
+from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parent.parent
 MAX_PAGES = 20          # 20 x 250 = hasta 5.000 productos por tienda
 IMG_WIDTH = 600         # ancho pedido al CDN de Shopify para las fotos
+MAX_BYTES = 8_000_000   # tope por respuesta descargada
+
+# ---------- seguridad: solo enlaces https, y del dominio de la tienda ----------
+def safe_url(u, hosts=None):
+    try:
+        p = urlsplit(str(u or "").strip())
+    except ValueError:
+        return None
+    if p.scheme != "https" or not p.hostname:
+        return None
+    if hosts and not any(p.hostname == h or p.hostname.endswith("." + h) for h in hosts):
+        return None
+    return p.geturl()
+
+def store_hosts(s):
+    hs = {s["domain"], s.get("api_domain")}
+    if s.get("url_template"):
+        hs.add(urlsplit(s["url_template"]).hostname)
+    return {h.removeprefix("www.") for h in hs if h}
+
+def read_capped(r):
+    data = r.read(MAX_BYTES + 1)
+    if len(data) > MAX_BYTES:
+        raise ValueError("respuesta demasiado grande")
+    return data
 
 def norm(s):
     s = unicodedata.normalize("NFD", str(s or "").lower())
@@ -46,15 +72,18 @@ COLORS = [
     ("Morado", r"\bpurple\b|\bmorad[oa]\b|\blila\b|\blavender\b|\bviolet"),
 ]
 
-SIZE_MAP = {"XXS": "XS", "2XL": "XXL", "3XL": "XXXL", "U": "Única", "UNICA": "Única", "ÚNICA": "Única",
+SIZE_MAP = {"XXS": "XS", "XSS": "XS", "XLARGE": "XL", "LARGE": "L", "MEDIUM": "M", "SMALL": "S", "2XL": "XXL", "3XL": "XXXL", "U": "Única", "UNICA": "Única", "ÚNICA": "Única",
             "TALLA UNICA": "Única", "TALLA ÚNICA": "Única", "OS": "Única", "ONE SIZE": "Única",
             "STD": "Única", "ESTANDAR": "Única", "ESTÁNDAR": "Única", "DEFAULT TITLE": "Única", "ALL": "Única"}
 
 def norm_size(s):
     t = str(s).strip().upper()
-    m = re.match(r"^\d+\s*/\s*([A-Z]+)$", t)
+    m = re.match(r"^\d+\s*/\s*([A-Z]+)$", t) or re.match(r"^([A-Z]+)\s*/\s*\d+$", t)   # 46/XL o XL/46
     if m:
         t = m.group(1)
+    t = re.sub(r"^(XS|S|M|L|XL|XXL)\s*-\s*(S|M|L|XL|XXL|XXXL)$", r"\1/\2", t)        # S-M -> S/M
+    if re.match(r"^\d+\s*X\s*\d+$", t) or re.match(r"^[IV]+$", t):                   # medidas (30X42) o romanos
+        return None
     if t.startswith("TALLA ") and t not in SIZE_MAP:
         t = t[6:]
     t = SIZE_MAP.get(t, t)
@@ -140,7 +169,7 @@ def fetch_store(store):
         for attempt in range(3):
             try:
                 with urllib.request.urlopen(req, timeout=30) as r:
-                    products = json.load(r).get("products", [])
+                    products = json.loads(read_capped(r)).get("products", [])
                 break
             except Exception as e:
                 if attempt == 2:
@@ -158,11 +187,13 @@ def fetch_store(store):
 
 # ---------- tiendas WooCommerce (API pública "Store API") ----------
 def get_json(url):
+    if not safe_url(url):
+        raise ValueError("url no permitida")
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (radar-streetwear catalog)", "Accept": "application/json"})
     for attempt in range(3):
         try:
             with urllib.request.urlopen(req, timeout=30) as r:
-                return json.load(r)
+                return json.loads(read_capped(r))
         except Exception:
             if attempt == 2:
                 raise
@@ -234,19 +265,21 @@ def fetch_woo(store):
 UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"}
 
 def get_text(url):
+    if not safe_url(url):
+        raise ValueError("url no permitida")
     req = urllib.request.Request(url, headers=UA)
     with urllib.request.urlopen(req, timeout=30) as r:
-        return r.read().decode("utf-8", "replace")
+        return read_capped(r).decode("utf-8", "replace")
 
-def sitemap_urls(url, depth=0):
+def sitemap_urls(url, hosts, depth=0):
     xml = get_text(url)
     locs = [html_unescape(u.strip()) for u in re.findall(r"<loc>(.*?)</loc>", xml, re.S)]
     if "<sitemapindex" in xml and depth < 2:
         out = []
-        for sm in locs:
-            if re.search(r"product|producto|sitemap", sm, re.I):
+        for sm in locs[:50]:
+            if re.search(r"product|producto|sitemap", sm, re.I) and safe_url(sm, hosts):
                 try:
-                    out += sitemap_urls(sm, depth + 1)
+                    out += sitemap_urls(sm, hosts, depth + 1)
                 except Exception:
                     pass
         return out
@@ -334,12 +367,15 @@ def from_page(url, htmltext, store):
 
 def fetch_sitemap(store):
     base = f"https://{store['domain']}"
-    urls = sitemap_urls(store.get("sitemap") or f"{base}/sitemap.xml")
+    hosts = store_hosts(store)
+    urls = sitemap_urls(store.get("sitemap") or f"{base}/sitemap.xml", hosts)
     skip = re.compile(r"/(en|pt|fr)(/|$)|/(cart|carrito|contact|contacto|login|customer|blog|pages?|policies|politicas)(/|$)", re.I)
     seen, items = set(), []
     for u in urls:
-        path = u.split(store["domain"], 1)[-1]
-        if store["domain"] not in u or path in ("", "/") or skip.search(path) or u in seen:
+        if not safe_url(u, hosts):
+            continue
+        path = urlsplit(u).path
+        if path in ("", "/") or skip.search(path) or u in seen:
             continue
         seen.add(u)
         if len(seen) > 600:
@@ -375,6 +411,19 @@ def main():
             kept = previous.get(s["brand"], [])
             items += kept
             report.append(f"{s['brand']}: ERROR ({e}); se mantienen {len(kept)} del día anterior")
+
+    # filtro final: enlace de compra https del dominio de la tienda, foto https, título acotado
+    by_brand = {s["brand"]: s for s in stores}
+    clean = []
+    for it in items:
+        st = by_brand.get(it.get("brand"))
+        if not st or not safe_url(it.get("url"), store_hosts(st)):
+            continue
+        if it.get("image") and not safe_url(it["image"]):
+            it["image"] = None
+        it["title"] = str(it.get("title") or "")[:200]
+        clean.append(it)
+    items = clean
 
     now = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=-3)))
     data = {
