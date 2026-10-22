@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Radar Streetwear CL</title>
+<style>
+/* Layout: barra superior con menús desplegables de filtros + fila de filtros activos + grilla de prendas */
+:root{
+  --bg:#f4f5f7; --surface:#ffffff; --line:#dfe2e8; --fg:#1d2028; --muted:#666d7a;
+  --accent:#0b6bcb; --accent-ink:#ffffff; --sale:#c62828; --chip:#eef1f5; --shadow:0 8px 24px rgba(20,25,35,.14);
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#14161b; --surface:#1d2027; --line:#2e333d; --fg:#e8eaee; --muted:#9aa1ad;
+  --accent:#4ea1f3; --accent-ink:#0b1220; --sale:#ff6b6b; --chip:#262a33; --shadow:0 8px 24px rgba(0,0,0,.5); color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:14px}
+.gut{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header{background:var(--surface);border-bottom:1px solid var(--line);padding-block:14px 10px}
+.top{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:baseline;justify-content:space-between}
+h1{margin:0;font-size:22px;letter-spacing:-.01em}
+.meta{color:var(--muted);font-size:12px}
+.bar{position:sticky;top:0;z-index:20;background:var(--surface);border-bottom:1px solid var(--line);padding-block:10px}
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+#q{flex:1 1 220px;min-width:0;padding:9px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg);font:inherit}
+.dd{position:relative}
+.ddbtn,.toggle{border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:6px;padding:8px 12px;font:inherit;cursor:pointer;display:inline-flex;gap:6px;align-items:center;white-space:nowrap}
+.ddbtn[aria-expanded="true"]{border-color:var(--accent)}
+.ddbtn .n{background:var(--accent);color:var(--accent-ink);border-radius:999px;font-size:11px;padding:0 6px;font-weight:700}
+.ddbtn .n:empty{display:none}
+.caret{font-size:10px;color:var(--muted)}
+.toggle[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.panel{position:absolute;top:calc(100% + 6px);left:0;width:280px;max-width:calc(100vw - 32px);background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);padding:10px;z-index:30}
+.panel input[type=search]{width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg);font:inherit;margin-bottom:8px}
+.list{max-height:300px;overflow:auto;display:flex;flex-direction:column;gap:2px}
+.list label{display:flex;gap:8px;align-items:center;padding:6px;border-radius:5px;cursor:pointer}
+.list label:hover{background:var(--chip)}
+.list .c{margin-left:auto;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
+.grid2{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.grid2 label{justify-content:center;border:1px solid var(--line);padding:6px 4px}
+.grid2 label:has(input:checked){background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.grid2 input{position:absolute;opacity:0;pointer-events:none}
+.pfoot{display:flex;justify-content:space-between;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
+.link{background:none;border:0;color:var(--accent);cursor:pointer;font:inherit;padding:4px}
+.prow{display:flex;gap:8px}
+.prow input{width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg);font:inherit}
+.presets{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.presets button{border:1px solid var(--line);background:var(--chip);color:var(--fg);border-radius:999px;padding:4px 10px;font:inherit;font-size:12px;cursor:pointer}
+.sw{width:14px;height:14px;border-radius:50%;display:inline-block;border:1px solid rgba(128,128,128,.5);flex:none}
+.active{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.active:empty{display:none}
+.pill{border:1px solid var(--line);background:var(--chip);color:var(--fg);border-radius:999px;padding:3px 6px 3px 10px;font:inherit;font-size:12px;cursor:pointer;display:inline-flex;gap:6px;align-items:center}
+.pill b{font-weight:400;color:var(--muted)}
+.clear{font-size:12px}
+main{padding-block:16px 32px}
+.info{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px;color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:8px;overflow:hidden;display:flex;flex-direction:column;min-width:0}
+.pic{position:relative;aspect-ratio:4/5;background:var(--chip);display:grid;place-items:center;max-width:100%;overflow:hidden}
+.pic img{width:100%;height:100%;object-fit:cover;display:block}
+.pic .ph{color:var(--muted);font-size:12px}
+.badge{position:absolute;top:8px;left:8px;background:var(--sale);color:#fff;font-weight:700;font-size:12px;padding:3px 7px;border-radius:4px}
+.new{position:absolute;bottom:8px;left:8px;background:var(--surface);color:var(--fg);font-size:11px;font-weight:700;padding:3px 7px;border-radius:4px}
+.soldout{position:absolute;top:8px;right:8px;background:var(--fg);color:var(--bg);font-size:11px;padding:3px 7px;border-radius:4px}
+.body{padding:10px 12px 12px;display:flex;flex-direction:column;gap:6px;flex:1}
+.brand{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:flex;justify-content:space-between;gap:6px}
+.brand a{color:var(--muted)}
+.title{font-weight:600;line-height:1.3;overflow-wrap:anywhere}
+.price{font-variant-numeric:tabular-nums;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.price b{font-size:16px}
+.price.sale b{color:var(--sale)}
+.price s{color:var(--muted);font-size:12px}
+.sizes{display:flex;flex-wrap:wrap;gap:4px}
+.sizes span{font-size:11px;border:1px solid var(--line);border-radius:4px;padding:1px 6px}
+.sizes .none{color:var(--muted);border-style:dashed}
+.go{margin-top:auto;display:block;text-align:center;background:var(--accent);color:var(--accent-ink);text-decoration:none;padding:9px;border-radius:6px;font-weight:600}
+.empty{grid-column:1/-1;padding:40px;text-align:center;color:var(--muted)}
+.more{display:block;margin:20px auto 0;border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:6px;padding:10px 18px;font:inherit;cursor:pointer}
+button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (max-width:640px){
+  .controls{flex-wrap:nowrap;overflow-x:auto;padding-bottom:2px}
+  #q{flex:0 0 160px}
+  .dd{position:static}
+  .panel{left:16px;right:16px;width:auto;max-width:none;top:auto;margin-top:6px}
+  .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .body{padding:8px}
+}
+</style>
+</head>
+<body>
+<header class="gut">
+  <div class="top"><h1>Radar Streetwear CL</h1><span class="meta" id="meta">Cargando catálogo…</span></div>
+</header>
+
+<div class="bar gut">
+  <div class="controls" id="controls">
+    <input type="search" id="q" placeholder="Buscar: hoodie, cargo, negro…" aria-label="Buscar prenda">
+    <div class="dd" data-key="brand"><button class="ddbtn" type="button" aria-expanded="false">Marca <span class="n"></span><span class="caret">▾</span></button></div>
+    <div class="dd" data-key="cat"><button class="ddbtn" type="button" aria-expanded="false">Tipo <span class="n"></span><span class="caret">▾</span></button></div>
+    <div class="dd" data-key="size"><button class="ddbtn" type="button" aria-expanded="false">Talla <span class="n"></span><span class="caret">▾</span></button></div>
+    <div class="dd" data-key="color"><button class="ddbtn" type="button" aria-expanded="false">Color <span class="n"></span><span class="caret">▾</span></button></div>
+    <div class="dd" data-key="price"><button class="ddbtn" type="button" aria-expanded="false">Precio <span class="n"></span><span class="caret">▾</span></button></div>
+    <div class="dd" data-key="sort"><button class="ddbtn" type="button" aria-expanded="false">Ordenar <span class="caret">▾</span></button></div>
+    <button class="toggle" type="button" id="tStock" aria-pressed="true">Con stock</button>
+    <button class="toggle" type="button" id="tSale" aria-pressed="false">En oferta</button>
+  </div>
+  <div class="active" id="active"></div>
+</div>
+
+<main class="gut">
+  <div class="info"><span id="count"></span></div>
+  <div class="grid" id="grid"></div>
+  <button class="more" id="more" type="button" hidden>Ver más prendas</button>
+</main>
+
+<script>
+const COLORS={"Negro":"#1a1a1a","Blanco/Crema":"#f3efe6","Gris":"#9a9ca1","Azul":"#2f5fa8","Rojo/Burdeo":"#8e2333","Rosado":"#e89ab5","Verde":"#5d7a3e","Café/Beige":"#8a6a4a","Amarillo":"#e7c43c","Naranjo":"#e3792f","Morado":"#7a4fa0","Camuflado":"#6b6b47"};
+const SIZE_ORDER=["XS","S","M","L","XL","XXL","XXXL","Única"];
+const SORTS={rel:"Más recientes",asc:"Precio: menor a mayor",desc:"Precio: mayor a menor",disc:"Mayor descuento"};
+const LABELS={brand:"Marca",cat:"Tipo",size:"Talla",color:"Color"};
+const PAGE=48;
+const fmt=n=>"$"+Math.round(n).toLocaleString("es-CL");
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const normTxt=s=>s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"");
+
+let DATA={items:[],stores:[]}, IG={}, shown=PAGE, openKey=null;
+const state={q:"",stock:true,sale:false,brand:new Set(),cat:new Set(),size:new Set(),color:new Set(),pMin:null,pMax:null,sort:"rel"};
+const $=id=>document.getElementById(id);
+
+function save(){try{localStorage.setItem("radar-f2",JSON.stringify({...state,brand:[...state.brand],cat:[...state.cat],size:[...state.size],color:[...state.color]}))}catch(e){}}
+function load(){try{const s=JSON.parse(localStorage.getItem("radar-f2")||"null");if(s)Object.assign(state,s,{brand:new Set(s.brand),cat:new Set(s.cat),size:new Set(s.size),color:new Set(s.color)})}catch(e){}}
+
+// cuántos productos tiene cada opción, con los demás filtros aplicados
+function matches(i,skip){
+  if(state.stock&&!i.available)return false;
+  if(state.sale&&!(i.compare_at>i.price))return false;
+  if(skip!=="brand"&&state.brand.size&&!state.brand.has(i.brand))return false;
+  if(skip!=="cat"&&state.cat.size&&!state.cat.has(i.cat))return false;
+  if(skip!=="color"&&state.color.size&&!i.colors.some(c=>state.color.has(c)))return false;
+  if(skip!=="size"&&state.size.size&&!i.sizes.some(s=>state.size.has(s)))return false;
+  if(state.pMin!=null&&i.price<state.pMin)return false;
+  if(state.pMax!=null&&i.price>state.pMax)return false;
+  if(state.q){const w=normTxt(state.q).split(/\s+/).filter(Boolean);if(!w.every(x=>i.search.includes(x)))return false}
+  return true;
+}
+function counts(key){
+  const m=new Map();
+  DATA.items.forEach(i=>{if(!matches(i,key))return;const vals=key==="brand"?[i.brand]:key==="cat"?[i.cat]:key==="size"?i.sizes:i.colors;vals.forEach(v=>m.set(v,(m.get(v)||0)+1))});
+  return m;
+}
+function allValues(key){
+  const s=new Set();DATA.items.forEach(i=>{(key==="brand"?[i.brand]:key==="cat"?[i.cat]:key==="size"?i.sizes:i.colors).forEach(v=>s.add(v))});
+  let v=[...s];
+  if(key==="size")v.sort((a,b)=>{const x=SIZE_ORDER.indexOf(a),y=SIZE_ORDER.indexOf(b);if(x>-1&&y>-1)return x-y;if(x>-1)return -1;if(y>-1)return 1;return a.localeCompare(b,"es",{numeric:true})});
+  else if(key==="color")v=Object.keys(COLORS).filter(c=>s.has(c));
+  else v.sort((a,b)=>a.localeCompare(b,"es"));
+  return v;
+}
+
+function panelHTML(key){
+  if(key==="price")return `<div class="prow"><input type="number" id="pMin" placeholder="Mínimo" min="0" step="1000" inputmode="numeric" value="${state.pMin??""}" aria-label="Precio mínimo"><input type="number" id="pMax" placeholder="Máximo" min="0" step="1000" inputmode="numeric" value="${state.pMax??""}" aria-label="Precio máximo"></div>
+    <div class="presets"><button type="button" data-p="0-20000">Hasta $20.000</button><button type="button" data-p="20000-40000">$20.000 – $40.000</button><button type="button" data-p="40000-60000">$40.000 – $60.000</button><button type="button" data-p="60000-">Más de $60.000</button></div>
+    <div class="pfoot"><button class="link" type="button" data-clear="price">Quitar</button><button class="link" type="button" data-close>Listo</button></div>`;
+  if(key==="sort")return `<div class="list">${Object.entries(SORTS).map(([k,v])=>`<label><input type="radio" name="sort" value="${k}" ${state.sort===k?"checked":""}> ${v}</label>`).join("")}</div>`;
+  const c=counts(key), vals=allValues(key);
+  const opts=vals.map(v=>{const n=c.get(v)||0;const sw=key==="color"?`<span class="sw" style="background:${COLORS[v]}"></span>`:"";
+    return `<label data-v="${esc(normTxt(v))}"><input type="checkbox" value="${esc(v)}" ${state[key].has(v)?"checked":""}> ${sw}${esc(v)}${key==="size"?"":`<span class="c">${n}</span>`}</label>`}).join("");
+  const search=key==="brand"?`<input type="search" placeholder="Buscar marca…" data-find aria-label="Buscar marca">`:"";
+  return `${search}<div class="list ${key==="size"?"grid2":""}">${opts}</div><div class="pfoot"><button class="link" type="button" data-clear="${key}">Quitar</button><button class="link" type="button" data-close>Listo</button></div>`;
+}
+
+function closePanel(){document.querySelectorAll(".panel").forEach(p=>p.remove());document.querySelectorAll(".ddbtn").forEach(b=>b.setAttribute("aria-expanded","false"));openKey=null}
+function openPanel(dd){
+  const key=dd.dataset.key; const was=openKey===key; closePanel(); if(was)return;
+  openKey=key; dd.querySelector(".ddbtn").setAttribute("aria-expanded","true");
+  const p=document.createElement("div");p.className="panel";p.innerHTML=panelHTML(key);dd.appendChild(p);
+  p.addEventListener("click",e=>e.stopPropagation());
+  p.querySelectorAll("input[type=checkbox]").forEach(cb=>cb.onchange=()=>{cb.checked?state[key].add(cb.value):state[key].delete(cb.value);update()});
+  p.querySelectorAll("input[type=radio]").forEach(r=>r.onchange=()=>{state.sort=r.value;closePanel();update()});
+  const f=p.querySelector("[data-find]");if(f){f.focus();f.oninput=()=>{const t=normTxt(f.value);p.querySelectorAll(".list label").forEach(l=>l.hidden=!l.dataset.v.includes(t))}}
+  if(key==="price"){
+    const num=v=>v===""?null:Number(v);
+    $("pMin").oninput=()=>{state.pMin=num($("pMin").value);update()};
+    $("pMax").oninput=()=>{state.pMax=num($("pMax").value);update()};
+    p.querySelectorAll("[data-p]").forEach(b=>b.onclick=()=>{const[a,z]=b.dataset.p.split("-");state.pMin=a?+a:null;state.pMax=z?+z:null;$("pMin").value=state.pMin??"";$("pMax").value=state.pMax??"";update()});
+  }
+  p.querySelector("[data-clear]")?.addEventListener("click",()=>{clearKey(key);closePanel();update()});
+  p.querySelector("[data-close]")?.addEventListener("click",closePanel);
+}
+function clearKey(k){if(k==="price"){state.pMin=null;state.pMax=null}else state[k].clear()}
+
+function renderActive(){
+  const pills=[];
+  ["brand","cat","size","color"].forEach(k=>state[k].forEach(v=>pills.push(`<button class="pill" type="button" data-k="${k}" data-v="${esc(v)}"><b>${LABELS[k]}:</b> ${esc(v)} ✕</button>`)));
+  if(state.pMin!=null||state.pMax!=null)pills.push(`<button class="pill" type="button" data-k="price"><b>Precio:</b> ${state.pMin!=null?fmt(state.pMin):"$0"} – ${state.pMax!=null?fmt(state.pMax):"sin tope"} ✕</button>`);
+  if(pills.length>1)pills.push(`<button class="link clear" type="button" id="clearAll">Limpiar todo</button>`);
+  $("active").innerHTML=pills.join("");
+  $("active").querySelectorAll(".pill").forEach(b=>b.onclick=()=>{const k=b.dataset.k;k==="price"?clearKey("price"):state[k].delete(b.dataset.v);update()});
+  $("clearAll")?.addEventListener("click",()=>{["brand","cat","size","color","price"].forEach(clearKey);update()});
+  document.querySelectorAll(".dd").forEach(dd=>{const k=dd.dataset.key,n=dd.querySelector(".n");if(!n)return;
+    n.textContent=k==="price"?((state.pMin!=null||state.pMax!=null)?"1":""):(state[k].size||"")});
+  $("tStock").setAttribute("aria-pressed",state.stock);$("tSale").setAttribute("aria-pressed",state.sale);
+}
+
+function card(i){
+  const disc=i.compare_at>i.price?Math.round((1-i.price/i.compare_at)*100):0;
+  const isNew=i.published&&(Date.now()-new Date(i.published).getTime())<14*864e5;
+  const pic=i.image?`<img src="${esc(i.image)}" alt="${esc(i.title)}" loading="lazy" decoding="async" onerror="this.outerHTML='<span class=ph>Foto no disponible</span>'">`:`<span class="ph">Sin foto</span>`;
+  const sz=i.sizes.length?i.sizes.map(s=>`<span>${esc(s)}</span>`).join(""):`<span class="none">Sin tallas disponibles</span>`;
+  const ig=IG[i.brand]?`<a href="${esc(IG[i.brand])}" target="_blank" rel="noopener">Instagram</a>`:"";
+  return `<article class="card"><div class="pic">${pic}${disc?`<span class="badge">-${disc}%</span>`:""}${isNew?`<span class="new">Nuevo</span>`:""}${i.available?"":`<span class="soldout">Agotado</span>`}</div>
+  <div class="body"><div class="brand"><span>${esc(i.brand)} · ${esc(i.cat)}</span>${ig}</div><div class="title">${esc(i.title)}</div>
+  <div class="price${disc?" sale":""}"><b>${fmt(i.price)}</b>${disc?`<s>${fmt(i.compare_at)}</s>`:""}</div>
+  <div class="sizes">${sz}</div><a class="go" href="${esc(i.url)}" target="_blank" rel="noopener">Ver en la tienda ↗</a></div></article>`;
+}
+
+function update(resetPage=true){
+  if(resetPage)shown=PAGE;
+  let list=DATA.items.filter(i=>matches(i));
+  const d=i=>i.compare_at>i.price?1-i.price/i.compare_at:0;
+  if(state.sort==="asc")list.sort((a,b)=>a.price-b.price);
+  else if(state.sort==="desc")list.sort((a,b)=>b.price-a.price);
+  else if(state.sort==="disc")list.sort((a,b)=>d(b)-d(a));
+  else list.sort((a,b)=>(b.published||"").localeCompare(a.published||""));
+  $("grid").innerHTML=list.length?list.slice(0,shown).map(card).join(""):`<div class="empty">Ninguna prenda calza con estos filtros. Prueba quitando alguno.</div>`;
+  $("more").hidden=list.length<=shown;
+  $("count").textContent=`${list.length} prenda${list.length===1?"":"s"}`+(list.length>shown?` · mostrando ${shown}`:"");
+  renderActive();
+  // refresca contadores del panel abierto (lista de checkboxes)
+  if(openKey&&["brand","cat","color"].includes(openKey)){const c=counts(openKey);document.querySelectorAll(".panel .list label").forEach(l=>{const cb=l.querySelector("input"),s=l.querySelector(".c");if(s)s.textContent=c.get(cb.value)||0})}
+  save();
+}
+
+document.querySelectorAll(".dd").forEach(dd=>dd.querySelector(".ddbtn").addEventListener("click",e=>{e.stopPropagation();openPanel(dd)}));
+document.addEventListener("click",closePanel);
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closePanel()});
+$("q").oninput=()=>{state.q=$("q").value;update()};
+$("tStock").onclick=()=>{state.stock=!state.stock;update()};
+$("tSale").onclick=()=>{state.sale=!state.sale;update()};
+$("more").onclick=()=>{shown+=PAGE;update(false)};
+
+load();$("q").value=state.q;
+fetch("data.json?v="+Date.now()).then(r=>{if(!r.ok)throw new Error(r.status);return r.json()}).then(d=>{
+  DATA=d;(d.stores||[]).forEach(s=>IG[s.brand]=s.instagram);
+  const brands=new Set(d.items.map(i=>i.brand)).size;
+  $("meta").textContent=`${d.items.length} prendas de ${brands} marcas · actualizado ${d.updated}`;
+  update();
+}).catch(()=>{$("meta").textContent="No se pudo cargar el catálogo. Recarga la página en unos minutos.";});
+</script>
+</body>
+</html>
