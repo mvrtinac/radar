@@ -14,7 +14,7 @@
    Arimo (grotesca ancha) para lo grande y las cifras · Instrument Serif cursiva para marcas y acentos · Archivo para leer.
    Escala con saltos fuertes: 25vw / 7vw / 56px / 24px / 15px / 12px. */
 :root{
-  --bg:#0b0b0b; --fg:#f2f2ee; --muted:#9a9a94; --dim:#5c5c58; --line:#2a2a28; --surface:#151514; --hover:#1f1f1d;
+  --bg:#0b0b0b; --fg:#f2f2ee; --muted:#9a9a94; --dim:#7a7a74; --line:#2a2a28; --surface:#151514; --hover:#1f1f1d;
   --font:"Archivo",system-ui,sans-serif; --display:"Arimo","Helvetica Neue",Arial,sans-serif; --serif:"Instrument Serif",Georgia,serif;
   --radius-sm:0px; --max:1600px; --gut:20px; --focus:#f2f2ee;
   color-scheme:dark;
@@ -82,6 +82,7 @@ body.scrolled .top{border-bottom-color:var(--line)}
 .card:hover .sz,.card:focus-within .sz{transform:none}
 .sz span{font:400 12px/1 var(--display);padding:5px 7px;border:1px solid #4a4a46}
 .sz .none{border:0;color:var(--muted)}
+.sz2{display:none}
 .info{display:block;padding:14px 14px 18px;text-decoration:none}
 .info .by{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
 .info .by em{font:italic 400 19px/1 var(--serif);color:var(--fg)}
@@ -117,8 +118,10 @@ body.scrolled .top{border-bottom-color:var(--line)}
   .word{font-size:27vw}
   .hero-row{grid-template-columns:1fr;gap:22px;margin-top:24px}
   .figs{gap:28px}
-  .bar{top:54px}
-  .tab{font-size:23px}
+  .bar{position:static}
+  .nav a{padding:14px 0}
+  .tab{font-size:23px;padding:10px 0}
+  .tabs{margin-bottom:8px}
   .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
   .info{padding:10px 10px 14px}
   .info .by em{font-size:16px}
@@ -126,7 +129,10 @@ body.scrolled .top{border-bottom-color:var(--line)}
   .info h3{font-size:13px}
   .price b{font-size:21px}
   .go{display:none}
-  .sz{position:static;transform:none;background:none;padding:0 10px 8px}
+  .sz{display:none}
+  .sz2{display:flex;flex-wrap:wrap;gap:4px;margin-top:10px}
+  .sz2 span{font:400 11px/1 var(--display);padding:4px 6px;border:1px solid #4a4a46;color:var(--fg)}
+  .sz2 .none{border:0;padding:0;color:var(--muted)}
   .table td.name button{font-size:22px}
 }
 </style>
@@ -201,11 +207,12 @@ window.RADAR={id:"main",data:"data.json",
     const d=h.disc(i);
     const tags=[h.isNew(i)?`<b>Nuevo</b>`:"",!i.available?`<b>Agotado</b>`:""].join("");
     return `<article class="card">
-      <a class="pic" href="${h.esc(i.url)}" target="_blank" rel="noopener" tabindex="-1">${h.pic(i)}${tags?`<span class="tag">${tags}</span>`:""}${d?`<span class="off">−${d}%</span>`:""}<span class="sz">${h.sizes(i)}</span></a>
-      <a class="info" href="${h.esc(i.url)}" target="_blank" rel="noopener">
+      <a class="pic" href="${h.esc(i.url)}" target="_blank" rel="noopener noreferrer" tabindex="-1">${h.pic(i)}${tags?`<span class="tag">${tags}</span>`:""}${d?`<span class="off">−${d}%</span>`:""}<span class="sz">${h.sizes(i)}</span></a>
+      <a class="info" href="${h.esc(i.url)}" target="_blank" rel="noopener noreferrer">
         <span class="by"><em>${h.esc(i.brand)}</em><span>${h.esc(i.cat)}</span></span>
         <h3>${h.esc(i.title)}</h3>
         <span class="price"><b>${h.fmt(i.price)}</b>${d?`<s>${h.fmt(i.compare_at)}</s>`:""}<span class="go">Comprar ↗</span></span>
+        <span class="sz2">${h.sizes(i)}</span>
       </a></article>`;
   }};
 </script>
