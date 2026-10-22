@@ -44,7 +44,10 @@ def norm(s):
     return "".join(c for c in s if unicodedata.category(c) != "Mn")
 
 # ---------- reglas de clasificación (editar aquí) ----------
-EXCLUDE = r"^prueba|\bcd\b|vinilo|vinyl|gift ?card|tarjeta de regalo|giftcard|espejo|por mayor|mayorista"
+EXCLUDE = r"^prueba|producto de prueba|\bcd\b|vinilo|vinyl|gift ?card|tarjeta de regalo|giftcard|espejo|por mayor|mayorista|\bpago\b|bolsa (de )?regalo"
+# objetos que no son ropa (solo se aplica a lo que cae en "Accesorios"; bolsos, calcetines, cinturones y joyas se mantienen)
+NOT_WEAR = r"poster|afiche|lamina|figuras?\b|bloques|armable|peluche|adorno|sticker|calcoman|\btazas?\b|\bmug\b|llavero|keychain|\bpins?\b|chapita|cards?.?case|headphone|carcasa|funda|lanyard|libro|\bbook\b|\bvelas?\b|candle|juguete|\btoys?\b|lego|cuadro|puzzle|rompecabezas|encendedor|mousepad|alfombra|blueprint|\bguia\b"
+PRICE_MIN, PRICE_MAX = 1000, 900000   # fuera de este rango son pruebas o precios de relleno
 
 CATS = [
     ("Shorts", r"\bshorts?\b|\bbermuda|\bjorts?\b"),
@@ -418,6 +421,11 @@ def main():
     for it in items:
         st = by_brand.get(it.get("brand"))
         if not st or not safe_url(it.get("url"), store_hosts(st)):
+            continue
+        t = norm(it.get("title"))
+        if re.search(EXCLUDE, t) or (it.get("cat") == "Accesorios" and re.search(NOT_WEAR, t)):
+            continue
+        if not (PRICE_MIN <= (it.get("price") or 0) < PRICE_MAX):
             continue
         if it.get("image") and not safe_url(it["image"]):
             it["image"] = None
